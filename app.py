@@ -81,7 +81,7 @@ def get_conversational_chain():
 
     Answer:
     """
-    model = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0.3)
+    model = ChatGoogleGenerativeAI(model="gemini-2.0-flash", temperature=0.3)  # <-- fixed
     prompt = PromptTemplate(template=prompt_template, input_variables=["context", "question"])
     chain = load_qa_chain(model, chain_type="stuff", prompt=prompt)
     return chain
@@ -109,7 +109,7 @@ def user_input(user_question, user_id):
         st.error(f"Error generating response: {e}")
 
 def get_gemini_response(question):
-    model = genai.GenerativeModel("gemini-pro")
+    model = genai.GenerativeModel("gemini-2.0-flash")  # <-- fixed
     chat = model.start_chat(history=[])
     response = chat.send_message(question, stream=True)
     return response
