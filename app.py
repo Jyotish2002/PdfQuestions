@@ -14,6 +14,9 @@ import google.generativeai as genai
 load_dotenv()
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
 
+# ---------------------------
+# Local Question-Answer History (unchanged)
+# ---------------------------
 qa_history = {}
 
 def log_question_answer(user_id, question, answer):
@@ -28,6 +31,9 @@ def log_question_answer(user_id, question, answer):
 def get_question_answer_history(user_id):
     return qa_history.get(user_id, [])
 
+# ---------------------------
+# PDF + LangChain functions (unchanged)
+# ---------------------------
 def get_pdf_text(pdf_docs):
     text = ""
     for pdf in pdf_docs:
@@ -82,86 +88,141 @@ def get_gemini_response(question):
     return response
 
 # ---------------------------
-# Main Tech-Themed UI
+# App with Light/Dark Mode Toggle (sidebar upload UNCHANGED)
 # ---------------------------
 def main():
     st.set_page_config(page_title="Tech-Titans", layout="wide")
 
-    # Dark tech theme CSS
-    st.markdown("""
+    # Theme state
+    if "theme" not in st.session_state:
+        st.session_state.theme = "dark"  # default
+
+    # Header + theme toggle
+    left, right = st.columns([0.8, 0.2])
+    with left:
+        st.markdown(
+            "<h1 style='margin-bottom:0'>⚡ Tech-Titans — AI PDF Assistant</h1>",
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            "<p style='margin-top:4px;opacity:0.8'>Ask book-accurate answers or switch to Gemini-powered explanations.</p>",
+            unsafe_allow_html=True
+        )
+    with right:
+        mode = st.toggle("🌙 Dark mode", value=(st.session_state.theme == "dark"))
+        st.session_state.theme = "dark" if mode else "light"
+
+    # THEME CSS (uses CSS variables; switches by injecting different variable sets)
+    common_css = """
         <style>
-            .main {background-color: #0d1117; color: #e6edf3;}
+            :root {
+                --radius: 12px;
+            }
             .stButton>button {
-                background: linear-gradient(90deg, #00C9FF 0%, #92FE9D 100%);
-                color: black;
-                border-radius: 8px;
-                padding: 8px 16px;
-                font-weight: bold;
                 border: none;
+                border-radius: var(--radius);
+                padding: 8px 16px;
+                font-weight: 600;
+                transition: transform .08s ease;
             }
-            .stButton>button:hover {transform: scale(1.05);}
-            .stTextInput>div>div>input {
-                background-color: #161b22;
-                color: #e6edf3;
-                border-radius: 8px;
-                border: 1px solid #30363d;
-            }
-            .bot-bubble {
-                background: #1f6feb;
-                color: white;
-                padding: 12px;
-                border-radius: 10px;
-                margin: 6px 0;
-            }
-            .user-bubble {
-                background: #2ea043;
-                color: white;
-                padding: 12px;
-                border-radius: 10px;
-                margin: 6px 0;
-                text-align: right;
-            }
+            .stButton>button:active { transform: scale(0.98); }
             .card {
-                background: #161b22;
-                padding: 15px;
+                border-radius: var(--radius);
+                padding: 16px;
+                border: 1px solid var(--border);
+                background: var(--surface);
+                margin-bottom: 16px;
+            }
+            .bot-bubble, .user-bubble {
                 border-radius: 12px;
-                border: 1px solid #30363d;
-                margin-bottom: 15px;
+                padding: 12px 14px;
+                margin: 6px 0;
+                border: 1px solid var(--border);
+            }
+            .bot-bubble { background: var(--bubble-bot-bg); color: var(--bubble-bot-fg); }
+            .user-bubble { background: var(--bubble-user-bg); color: var(--bubble-user-fg); text-align: right; }
+            .stTextInput>div>div>input {
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: var(--input-bg);
+                color: var(--fg);
+            }
+            .stTextInput>div>div>input::placeholder { color: var(--muted); }
+            .main { background: var(--bg); color: var(--fg); }
+        </style>
+    """
+    dark_vars = """
+        <style>
+            :root {
+                --bg: #0d1117;
+                --fg: #e6edf3;
+                --muted: #9aa7b2;
+                --surface: #0f1420;
+                --border: #2b3240;
+                --accent1: #00C9FF;
+                --accent2: #92FE9D;
+                --input-bg: #0f1522;
+                --bubble-bot-bg: #121a2a;
+                --bubble-bot-fg: #e6edf3;
+                --bubble-user-bg: #1b2a46;
+                --bubble-user-fg: #e6edf3;
+            }
+            .stButton>button {
+                background: linear-gradient(90deg, var(--accent1), var(--accent2));
+                color: #051016;
             }
         </style>
-    """, unsafe_allow_html=True)
-
-    # Header
-    st.markdown("<h1 style='color:#00C9FF;text-align:center;'>⚡ Tech-Titans - AI PDF Assistant ⚡</h1>", unsafe_allow_html=True)
+    """
+    light_vars = """
+        <style>
+            :root {
+                --bg: #f6f7fb;
+                --fg: #0b1220;
+                --muted: #6b7280;
+                --surface: #ffffff;
+                --border: #e6e8ef;
+                --accent1: #2563eb;
+                --accent2: #22c55e;
+                --input-bg: #ffffff;
+                --bubble-bot-bg: #f1f5ff;
+                --bubble-bot-fg: #0b1220;
+                --bubble-user-bg: #eefbf3;
+                --bubble-user-fg: #0b1220;
+            }
+            .stButton>button {
+                background: linear-gradient(90deg, var(--accent1), var(--accent2));
+                color: #ffffff;
+            }
+        </style>
+    """
+    st.markdown(common_css, unsafe_allow_html=True)
+    st.markdown(dark_vars if st.session_state.theme == "dark" else light_vars, unsafe_allow_html=True)
 
     user_id = "default_user"
 
-    # PDF Q&A
+    # ---------------- Main Area ----------------
     st.markdown("<div class='card'><h3>📄 Ask Questions from PDFs</h3></div>", unsafe_allow_html=True)
-    user_question = st.text_input("Type your question:")
+    user_question = st.text_input("Type your question (bookish answer from your PDFs):")
     if user_question:
         st.markdown(f"<div class='user-bubble'>{user_question}</div>", unsafe_allow_html=True)
         user_input(user_question, user_id)
 
     st.divider()
 
-    # Chat interface
-    st.markdown("<div class='card'><h3>🤖 Chat with AI</h3></div>", unsafe_allow_html=True)
+    st.markdown("<div class='card'><h3>🤖 Ask AI (Gemini) for Explanations</h3></div>", unsafe_allow_html=True)
     if 'chat_history' not in st.session_state:
         st.session_state['chat_history'] = []
 
-    chat_input = st.text_input("Ask me anything:", key="chat_input")
-    submit_chat = st.button("🚀 Send")
-
-    if submit_chat and chat_input:
+    chat_input = st.text_input("Ask anything (simplified/explanatory answers):", key="chat_input")
+    send = st.button("🚀 Send")
+    if send and chat_input:
         st.markdown(f"<div class='user-bubble'>{chat_input}</div>", unsafe_allow_html=True)
-        response = get_gemini_response(chat_input)
-        response_text = "".join([chunk.text for chunk in response if chunk.text]).strip()
-        st.markdown(f"<div class='bot-bubble'>{response_text}</div>", unsafe_allow_html=True)
-
+        resp = get_gemini_response(chat_input)
+        resp_text = "".join([chunk.text for chunk in resp if getattr(chunk, 'text', None)]).strip()
+        st.markdown(f"<div class='bot-bubble'>{resp_text}</div>", unsafe_allow_html=True)
         st.session_state['chat_history'].append(("You", chat_input))
-        st.session_state['chat_history'].append(("Bot", response_text))
-        log_question_answer(user_id, chat_input, response_text)
+        st.session_state['chat_history'].append(("Bot", resp_text))
+        log_question_answer(user_id, chat_input, resp_text)
 
     with st.expander("📜 Chat History"):
         for role, text in st.session_state.get('chat_history', []):
@@ -174,34 +235,33 @@ def main():
         history = get_question_answer_history(user_id)
         if history:
             for item in history:
-                st.markdown(f"**Q:** {item['question']}  \n**A:** {item['answer']}  \n*🕒 {item['timestamp']}*")
+                st.markdown(
+                    f"**Q:** {item['question']}  \n**A:** {item['answer']}  \n*🕒 {item['timestamp']}*"
+                )
         else:
             st.write("No Q&A history found.")
 
     if st.button("💾 Save Chat History"):
-        with open("chat_history.txt", "w") as file:
+        with open("chat_history.txt", "w") as f:
             for role, text in st.session_state.get('chat_history', []):
-                file.write(f"{role}: {text}\n")
+                f.write(f"{role}: {text}\n")
         st.success("Chat history saved!")
+        with open("chat_history.txt", "rb") as f:
+            st.download_button("⬇️ Download Chat History", data=f, file_name="chat_history.txt", mime="text/plain")
 
-        with open("chat_history.txt", "rb") as file:
-            st.download_button(
-                label="⬇️ Download Chat History",
-                data=file,
-                file_name="chat_history.txt",
-                mime="text/plain",
-            )
-
-    # Sidebar (UNCHANGED)
+    # ---------------- Sidebar (UNCHANGED) ----------------
     with st.sidebar:
         st.title("📂 Menu")
-        pdf_docs = st.file_uploader("Upload your PDF Files and Click on Submit & Process", accept_multiple_files=True)
+        pdf_docs = st.file_uploader(
+            "Upload your PDF Files and Click on the Submit & Process Button",
+            accept_multiple_files=True
+        )
         if st.button("Submit & Process", key="sidebar_process"):
             with st.spinner("Processing..."):
                 raw_text = get_pdf_text(pdf_docs)
                 text_chunks = get_text_chunks(raw_text)
                 get_vector_store(text_chunks)
-                st.success("✅ PDFs processed successfully!")
+                st.success("Done")
 
 if __name__ == "__main__":
     main()
